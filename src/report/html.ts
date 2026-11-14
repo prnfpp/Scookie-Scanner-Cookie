@@ -13,6 +13,9 @@ import { momentLabel } from './consolidate.js';
 import { categoriesUnreliable, NO_STATS_CATEGORY } from '../rules/regole/struttura-banner.js';
 import type { TestEntry } from '../util/pii.js';
 import { nWords, plural } from '../util/text.js';
+import { CSS, esc, fmt, sevBadge } from './style.js';
+
+export { CSS, esc, fmt, sevBadge } from './style.js';
 
 export interface ReportInput {
   config: AuditConfig;
@@ -55,11 +58,7 @@ export interface ReviewEntry {
 /** Chiave stabile di una scheda (anche per esecuzioni precedenti all'introduzione di "key"). */
 export const findingKey = (f: Finding) => f.key ?? `${f.ruleId}|${f.site}|${f.scenario ?? ''}|${f.headline ?? f.description.slice(0, 160)}`;
 
-export const esc = (v: unknown) =>
-  String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
-
 const SEV: Severity[] = ['alta', 'media', 'bassa', 'informativa'];
-export const sevBadge = (s: Severity) => `<span class="sev sev-${s}">${esc(s)}</span>`;
 const SCENARIO_TEXT: Record<string, string> = {
   'nessuna-azione': 'prima di qualsiasi scelta',
   accetta: "dopo l'accettazione",
@@ -69,7 +68,6 @@ const SCENARIO_TEXT: Record<string, string> = {
   chiudi: 'dopo la chiusura del banner con la X',
 };
 const listIt = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`);
-export const fmt = (iso: string) => new Date(iso).toLocaleString('it-IT', { timeZone: 'Europe/Rome' });
 
 const LIMITS = [
   'Campione: sono state visitate solo le pagine e i percorsi elencati nella sezione 2. Comportamenti presenti in altre pagine non sono coperti.',
@@ -82,17 +80,6 @@ const LIMITS = [
   'Natura del documento: lo strumento documenta fatti tecnici e li collega a riferimenti normativi; la valutazione di conformità spetta al consulente legale.',
 ];
 
-export const CSS = `
-:root{--fg:#1d1d1f;--muted:#5f6368;--line:#dadce0;--bg:#fff;--alt:#f6f7f9;--alta:#b3261e;--media:#b26a00;--bassa:#1a73e8;--info:#5f6368}
-*{box-sizing:border-box}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}body{font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--fg);background:var(--bg);margin:0;padding:24px;max-width:1100px;margin:auto}
-h1{font-size:24px;margin:0 0 4px}.subtitle{font-size:17px;margin:0 0 6px;font-weight:600}h2{font-size:20px;border-bottom:2px solid var(--fg);padding-bottom:4px;margin-top:40px;page-break-after:avoid}h3{font-size:16px;margin:18px 0 6px}
-.muted{color:var(--muted)}.warn{border:1px solid var(--media);background:#fff4e5;padding:8px 12px;border-radius:6px}table{border-collapse:collapse;width:100%;margin:8px 0 16px;font-size:12.5px}th,td{border:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top;word-break:break-word}th{background:var(--alt)}
-.sev{display:inline-block;padding:1px 8px;border-radius:10px;color:#fff;font-size:12px;font-weight:600;text-transform:uppercase}.sev-alta{background:var(--alta)}.sev-media{background:var(--media)}.sev-bassa{background:var(--bassa)}.sev-informativa{background:var(--info)}
-.card{border:1px solid var(--line);border-left:5px solid var(--info);border-radius:6px;padding:12px 16px;margin:14px 0;page-break-inside:avoid}.card.alta{border-left-color:var(--alta)}.card.media{border-left-color:var(--media)}.card.bassa{border-left-color:var(--bassa)}
-.card h3{margin-top:0}.part{border-top:1px solid var(--line);margin-top:12px;padding-top:8px}.part h4{font-size:14.5px;margin:4px 0 6px}.shots{display:flex;gap:8px;flex-wrap:wrap}.shots figure{margin:0;width:calc(50% - 4px)}.shots img{width:100%;border:1px solid var(--line)}figcaption{font-size:11px;color:var(--muted)}
-pre{background:var(--alt);padding:8px;font-size:11.5px;white-space:pre-wrap;word-break:break-all;border-radius:4px}code{font-size:12px}
-ul{margin:4px 0;padding-left:20px}.kv td:first-child{width:28%;font-weight:600;background:var(--alt)}
-.brief{border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:18px 0;background:var(--alt);page-break-inside:avoid}.brief h2{border:0;margin:0 0 10px;padding:0;font-size:18px}.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:0 0 12px}.kpi{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}.kpi b{display:block;font-size:22px;line-height:1.2;font-variant-numeric:tabular-nums}.kpi span{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}.kpi.alta b{color:var(--alta)}.kpi.media b{color:var(--media)}.kpi.bassa b{color:var(--bassa)}.toc{columns:2;column-gap:24px;margin:6px 0 0;padding-left:20px}.toc a{color:var(--fg)}.brief .start li{margin:3px 0}.anchor{display:block;position:relative;top:-8px}.up{float:right;font-size:12px;font-weight:400;color:var(--muted);text-decoration:none}.up:hover{text-decoration:underline}@page{size:A4;margin:14mm 12mm}@media print{body{padding:0 2px;max-width:none;width:auto}a{color:inherit}table{table-layout:fixed}.up{display:none}.toc{columns:1}}`;
 
 /**
  * Righe della tabella delle interazioni: le sessioni consecutive "nessuna azione" dello stesso sito con lo stesso esito

@@ -3,7 +3,8 @@ import { gzipSync } from 'node:zlib';
 import { trimHar } from './browser/har.js';
 import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { chromium, type Browser, type LaunchOptions, type Page } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
+import { launchOptions, resolveUserAgent } from './browser/launch.js';
 import { Classifier, type TrackerEntry } from './classify/classifier.js';
 import { loadConfigText, type LoadedConfig } from './config/load.js';
 import type { AuditConfig } from './config/schema.js';
@@ -72,34 +73,7 @@ export interface RunResult {
   sessions: SessionResult[];
 }
 
-export function launchOptions(cfg: AuditConfig, headless = cfg.browser.headless): LaunchOptions {
-  const args: string[] = [];
-  if (cfg.browser.hostResolverRules) {
-    // Solo per i test: tutti gli host puntano a 127.0.0.1 e la protezione della rete locale di Chromium
-    // bloccherebbe le letture di robots.txt e sitemap fatte dal documento fittizio (vedi discovery).
-    // I contenuti incorporati di prova sono serviti anche in HTTPS con un certificato autofirmato (test/fixtures/tls).
-    args.push(`--host-resolver-rules=${cfg.browser.hostResolverRules}`, '--disable-features=LocalNetworkAccessChecks', '--ignore-certificate-errors');
-  }
-  // Esecuzione di controllo: navigator.webdriver resta false, come in un browser comune
-  if (cfg.browser.uaNormale) args.push('--disable-blink-features=AutomationControlled');
-  return {
-    headless,
-    args,
-    channel: cfg.browser.canale === 'chromium' ? undefined : cfg.browser.canale,
-    executablePath: cfg.browser.executablePath,
-    proxy: cfg.browser.proxy ? { server: cfg.browser.proxy } : undefined,
-  };
-}
-
-export async function resolveUserAgent(browser: Browser, cfg: AuditConfig): Promise<string> {
-  if (cfg.browser.userAgent) return cfg.browser.userAgent;
-  const ctx = await browser.newContext();
-  const ua = await (await ctx.newPage()).evaluate(() => navigator.userAgent);
-  await closeSafely(ctx, 15000);
-  // Esecuzione di controllo: lo user agent di un browser qualunque, senza dichiarazione dell'audit
-  if (cfg.browser.uaNormale) return ua.replace('HeadlessChrome', 'Chrome');
-  return cfg.browser.userAgentSuffix ? `${ua} ${cfg.browser.userAgentSuffix}` : ua;
-}
+export { launchOptions, resolveUserAgent } from './browser/launch.js';
 
 /** Costruisce le sessioni da eseguire per un sito a partire dal campione. */
 /** Errori di Chromium dovuti alla connessione del computer (non al sito): computer in stop, rete caduta. */

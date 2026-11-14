@@ -4,6 +4,12 @@ import { closeSafely, withTimeout } from '../util/misc.js';
 import { registrableDomain } from '../util/domains.js';
 import { isRevokeUrl } from '../cmp/revoke.js';
 import { exploreByClicks } from './explore.js';
+import { robotsDisallows } from './robots.js';
+import { parseSitemap } from './sitemap.js';
+import { normalize } from './urls.js';
+
+export { robotsDisallows } from './robots.js';
+export { parseSitemap } from './sitemap.js';
 
 export interface SampledPage {
   url: string;
@@ -32,14 +38,7 @@ export interface DiscoveryResult {
 /** Parole che indicano una pagina di informativa (privacy o cookie policy) in un indirizzo o nel testo di un link. */
 export const POLICY_WORDS = /cookie|privacy|informativa|note[-_ ]?legali/i;
 
-const LOC_RE = /<loc>\s*(?:<!\[CDATA\[)?\s*([^<\]\s]+)\s*(?:\]\]>)?\s*<\/loc>/gi;
 const SKIP_EXT = /\.(?:pdf|jpe?g|png|gif|webp|svg|zip|docx?|xlsx?|pptx?|mp4|mp3|xml|txt|css|js)$/i;
-
-/** Estrae le <loc> da una sitemap; distingue sitemap indice e sitemap di pagine. */
-export function parseSitemap(xml: string): { isIndex: boolean; locs: string[] } {
-  const locs = [...xml.matchAll(LOC_RE)].map((m) => m[1].replace(/&amp;/g, '&'));
-  return { isIndex: /<sitemapindex[\s>]/i.test(xml), locs };
-}
 
 /**
  * Tipo di pagina: prima i pattern della configurazione, poi il primo segmento del path.
@@ -87,19 +86,6 @@ export function pageType(url: string, patterns: Record<string, string>, sections
   // Pagina con nome pulito (chi-siamo, contatti): tipo a sé se è l'indice di una sezione, altrimenti "pagina"
   if (sections && !sections.has(first.toLowerCase())) return 'pagina';
   return first.toLowerCase().slice(0, 40);
-}
-
-function normalize(url: string, base: string): string | null {
-  try {
-    const u = new URL(url, base);
-    if (!/^https?:$/.test(u.protocol)) return null;
-    // Le applicazioni con instradamento nel frammento (/#/preventivo) hanno pagine distinte nel frammento:
-    // lo si tiene solo per gli indirizzi che finiscono con "/" (o index.html), dove vive questo tipo di applicazione.
-    if (!(/^#!?\//.test(u.hash) && /(\/|\/index\.\w+)$/.test(u.pathname))) u.hash = '';
-    return u.toString();
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -185,38 +171,6 @@ async function fetchText(page: Page, url: string): Promise<string | null> {
   } catch {
     return null;
   }
-}
-
-/**
- * Regole Allow/Disallow di robots.txt per tutti i crawler (User-agent: *), con * e $ come in Google.
- * Ritorna una funzione che dice se un path è escluso. Vince la regola più lunga; a parità, Allow.
- */
-export function robotsDisallows(robots: string): (path: string) => boolean {
-  const rules: { allow: boolean; re: RegExp; len: number }[] = [];
-  let groupAgents: string[] = [];
-  let inRules = false;
-  for (const raw of robots.split(/\r?\n/)) {
-    const line = raw.replace(/#.*/, '').trim();
-    const m = /^([a-z-]+)\s*:\s*(.*)$/i.exec(line);
-    if (!m) continue;
-    const key = m[1].toLowerCase();
-    const value = m[2].trim();
-    if (key === 'user-agent') {
-      if (inRules) groupAgents = [];
-      inRules = false;
-      groupAgents.push(value.toLowerCase());
-    } else if (key === 'allow' || key === 'disallow') {
-      inRules = true;
-      if (!groupAgents.includes('*') || !value) continue;
-      // Il "$" finale non viene sottoposto a escape: resta l'ancora di fine path, come nelle specifiche.
-      const body = value.replace(/[.+?^{}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-      rules.push({ allow: key === 'allow', re: new RegExp(`^${body}`), len: value.length });
-    }
-  }
-  return (path: string) => {
-    const hits = rules.filter((r) => r.re.test(path)).sort((a, b) => b.len - a.len || Number(b.allow) - Number(a.allow));
-    return hits.length > 0 && !hits[0].allow;
-  };
 }
 
 async function readSitemaps(req: Page, origin: string, max: number, notes: string[], robots: string) {

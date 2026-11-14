@@ -2,6 +2,12 @@
 
 ## Non rilasciato
 
+- **Motore riusabile da altri strumenti.** Nuovo punto di ingresso `scookie/engine` (`src/engine.ts`) per il crawler
+  SEO: avvio del browser e user agent (`browser/launch.ts`), scroll (`browser/scroll.ts`), robots.txt, sitemap e
+  indirizzi (`discovery/robots.ts`, `sitemap.ts`, `urls.ts`), stile dei rapporti (`report/style.ts`). Solo
+  spostamenti di codice: il comportamento dell'audit non cambia. La compilazione produce anche le dichiarazioni dei
+  tipi e parte da sola dopo `npm install` (`prepare`).
+
 Terza verifica della rilevazione (navigazioni manuali corrette, tre ripetizioni).
 
 - **Nomi digitati: solo parola intera.** Un nome o cognome di prova breve (es. "Test", "Rosa") non scatta più dentro altre
