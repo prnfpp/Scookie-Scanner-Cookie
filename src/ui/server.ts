@@ -207,6 +207,8 @@ export async function startUi(opts: UiOptions): Promise<{ server: Server; url: s
   const token = randomBytes(24).toString('hex');
   let job: Job | null = null;
   let jobSeq = 0;
+  /** Il lavoro è ancora in esecuzione, anche se dopo un arresto forzato è già stato dato per fermo. */
+  let workRunning = false;
   /** Chiude la navigazione manuale in corso (pulsante "Ho finito" dell'interfaccia). */
   let manualFinish: (() => void) | null = null;
   let port = opts.port;
@@ -254,7 +256,8 @@ export async function startUi(opts: UiOptions): Promise<{ server: Server; url: s
   const STOP_GRACE_MS = 30000;
 
   const startJob = (kind: Job['kind'], file: string, work: (j: Job, signal: AbortSignal) => Promise<void>) => {
-    if (job?.status === 'in-corso') throw new HttpError(409, 'È già in corso un\'altra operazione: attendere che finisca.');
+    if (job?.status === 'in-corso' || workRunning) throw new HttpError(409, 'È già in corso un\'altra operazione: attendere che finisca.');
+    workRunning = true;
     const j: Job = {
       id: ++jobSeq,
       kind,
@@ -294,6 +297,9 @@ export async function startUi(opts: UiOptions): Promise<{ server: Server; url: s
       }, STOP_GRACE_MS).unref();
     };
     work(j, ctrl.signal)
+      .finally(() => {
+        workRunning = false;
+      })
       .then(() => end('completato'))
       .catch((e: Error) => {
         if (e instanceof AuditStopped || ctrl.signal.aborted) {
@@ -304,6 +310,15 @@ export async function startUi(opts: UiOptions): Promise<{ server: Server; url: s
         end('errore', e.message);
       });
     return j;
+  };
+
+  /** Decodifica un segmento dell'indirizzo; un `%` non valido è una richiesta sbagliata, non un errore del programma. */
+  const decode = (v: string) => {
+    try {
+      return decodeURIComponent(v);
+    } catch {
+      throw new HttpError(400, 'Indirizzo non valido');
+    }
   };
 
   const clientPath = (file: unknown) => {
@@ -335,8 +350,8 @@ export async function startUi(opts: UiOptions): Promise<{ server: Server; url: s
     // Percorsi registrati nelle navigazioni manuali (si rigiocano in automatico); "Registra di nuovo" li elimina
     const rec = /^\/api\/percorsi\/([^/]+)$/.exec(path);
     if (rec) {
-      const p = clientPath(decodeURIComponent(rec[1]));
-      const d = existsSync(p) ? (readClient(clientsDir, decodeURIComponent(rec[1])).data as { siti?: { url?: string }[] } | null) : null;
+      const p = clientPath(decode(rec[1]));
+      const d = existsSync(p) ? (readClient(clientsDir, decode(rec[1])).data as { siti?: { url?: string }[] } | null) : null;
       const sites = (d?.siti ?? []).map((s) => s?.url).filter((u): u is string => typeof u === 'string' && /^https?:\/\//.test(u));
       if (method === 'GET') {
         return json(
@@ -363,9 +378,9 @@ export async function startUi(opts: UiOptions): Promise<{ server: Server; url: s
     }
     const one = /^\/api\/clienti\/([^/]+)$/.exec(path);
     if (one && method === 'GET') {
-      const p = clientPath(decodeURIComponent(one[1]));
+      const p = clientPath(decode(one[1]));
       if (!existsSync(p)) throw new HttpError(404, 'Configurazione non trovata');
-      return json(res, 200, readClient(clientsDir, decodeURIComponent(one[1])));
+      return json(res, 200, readClient(clientsDir, decode(one[1])));
     }
     if (path === '/api/clienti' && method === 'POST') {
       // Salva dal modulo (data) o dal testo YAML (yaml). Si salva solo se la configurazione è valida.
@@ -477,7 +492,7 @@ export async function startUi(opts: UiOptions): Promise<{ server: Server; url: s
     }
     const rev = /^\/api\/revisione\/([^/]+)$/.exec(path);
     if (rev) {
-      const n = decodeURIComponent(rev[1]);
+      const n = decode(rev[1]);
       if (!RUN_RE.test(n) || n === '.' || n === '..' || !existsSync(join(runsDir, n, REVIEW_FILE))) throw new HttpError(404, 'Esecuzione non valida o senza modulo di revisione');
       if (method === 'GET') return json(res, 200, readReviewRows(join(runsDir, n)));
       if (method === 'POST') {
@@ -536,7 +551,7 @@ export async function startUi(opts: UiOptions): Promise<{ server: Server; url: s
 
   /** File delle esecuzioni (report, immagini, CSV): solo dentro la cartella esecuzioni. */
   function serveRunFile(res: ServerResponse, rel: string) {
-    const parts = rel.split('/').map(decodeURIComponent);
+    const parts = rel.split('/').map(decode);
     if (!parts.length || !RUN_RE.test(parts[0]) || parts.some((x) => x === '..' || x === '' || x.includes('\\'))) {
       throw new HttpError(400, 'Percorso non valido');
     }

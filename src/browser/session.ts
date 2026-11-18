@@ -281,7 +281,7 @@ export async function runSession(browser: Browser, plan: SessionPlan, env: Sessi
       return r.outcome === 'eseguito'
         ? { outcome: 'eseguito' as const, method: r.method, detail: r.detail }
         : { outcome: 'non-trovato' as const, detail: r.detail };
-    });
+    }, env.log);
     manual = m;
     shotPage = lastPage;
     env.log?.(`    navigazione manuale conclusa (${manual.endedBy === 'operatore' ? 'premuto "Ho finito"' : manual.endedBy === 'tempo' ? 'tempo scaduto' : 'finestra chiusa'})`);

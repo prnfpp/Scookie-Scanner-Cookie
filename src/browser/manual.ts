@@ -97,7 +97,7 @@ const OVERLAY = (instructions: string, siteHost: string, extra: string) => `(() 
     const p1 = css(document.createElement('p'), { margin: '4px 0', color: '#fff' });
     p1.textContent = ${JSON.stringify(instructions)};
     const p2 = css(document.createElement('p'), { margin: '4px 0', color: '#bbb' });
-    p2.textContent = 'Non toccare il banner dei cookie, a meno che Scookie non lo chieda nell'interfaccia (banner di un altro sito non gestito). Tutto ciò che accade viene registrato. Se apri una pagina sbagliata (es. errore 404) puoi tornare indietro: anche il ritorno viene registrato.';
+    p2.textContent = ${JSON.stringify("Non toccare il banner dei cookie, a meno che Scookie non lo chieda nell'interfaccia (banner di un altro sito non gestito). Tutto ciò che accade viene registrato. Se apri una pagina sbagliata (es. errore 404) puoi tornare indietro: anche il ritorno viene registrato.")};
     body.append(p1, p2);
     if (${JSON.stringify(extra)}) {
       const p3 = css(document.createElement('p'), { margin: '4px 0', color: '#ffd60a' });
@@ -171,6 +171,8 @@ export async function manualJourney(
    * del preventivo): ha un proprio banner, che va gestito come quello della pagina di partenza. Null se non c'è un banner.
    */
   onNewHost?: (page: Page, host: string) => Promise<Omit<ManualBanner, 'host' | 'url'> | null>,
+  /** Avvisi per l'operatore (es. il riquadro non si è potuto mostrare). */
+  log?: (msg: string) => void,
 ): Promise<ManualOutcome & { lastPage: Page }> {
   const started = Date.now();
   const context = page.context();
@@ -199,7 +201,8 @@ export async function manualJourney(
   await context.addInitScript(RECORDER);
   await page.evaluate(RECORDER).catch(() => {});
   await context.addInitScript(overlay);
-  await page.evaluate(overlay).catch(() => {});
+  // un errore nello script del riquadro non deve passare inosservato: senza riquadro l'operatore non ha il pulsante "Ho finito"
+  await page.evaluate(overlay).catch((e: Error) => log?.(`    ATTENZIONE: il riquadro con il pulsante "Ho finito" non si è potuto mostrare (${e.message.split('\n')[0]}). Usa "Ho finito" dall'interfaccia di Scookie.`));
 
   // Schede: la pagina attiva è l'ultima aperta o l'ultima che ha navigato; la sessione finisce quando sono tutte chiuse
   const open = new Set<Page>([page]);
