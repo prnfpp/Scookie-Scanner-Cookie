@@ -31,6 +31,18 @@ export interface ManualOutcome {
   extraTabs?: number;
   /** Dati inseriti dall'operatore ritrovati negli indirizzi delle pagine del sito (vedi typedValuesFromUrl). */
   urlValues?: { value: string; hint: string }[];
+  /** Banner trovati su altri siti raggiunti durante la navigazione (altro host dalla pagina di partenza), con l'esito. */
+  otherBanners?: ManualBanner[];
+}
+
+/** Banner di un altro host incontrato durante la navigazione manuale e come è stato gestito. */
+export interface ManualBanner {
+  host: string;
+  url: string;
+  /** eseguito: scelta fatta come nello scenario; non-gestito: banner visibile ma non toccato; non-trovato: scelta non riuscita. */
+  outcome: 'eseguito' | 'non-gestito' | 'non-trovato';
+  method?: string;
+  detail: string;
 }
 
 /**
@@ -154,6 +166,11 @@ export async function manualJourney(
   driver?: (page: Page) => Promise<void>,
   /** Riceve la funzione che chiude la sessione (pulsante "Ho finito" dell'interfaccia), poi null a sessione chiusa. */
   onFinisher?: (finish: (() => void) | null) => void,
+  /**
+   * Chiamata quando la navigazione arriva su un host mai visto in questa sessione (es. dal sito vetrina all'applicazione
+   * del preventivo): ha un proprio banner, che va gestito come quello della pagina di partenza. Null se non c'è un banner.
+   */
+  onNewHost?: (page: Page, host: string) => Promise<Omit<ManualBanner, 'host' | 'url'> | null>,
 ): Promise<ManualOutcome & { lastPage: Page }> {
   const started = Date.now();
   const context = page.context();
@@ -197,7 +214,30 @@ export async function manualJourney(
       if (registerTypedValue(v.value, v.hint, `${fieldScope}|${v.field}`) || urlValues.has(v.field)) urlValues.set(v.field, { value: v.value, hint: v.hint });
     }
   };
+  const bare = (h: string) => h.replace(/^www\./, '');
+  const hostOf = (u: string) => {
+    try {
+      return bare(new URL(u).hostname);
+    } catch {
+      return '';
+    }
+  };
+  const seenHosts = new Set<string>([hostOf(page.url())].filter(Boolean));
+  const otherBanners: ManualBanner[] = [];
+  // una gestione alla volta: due banner insieme (schede diverse) si gestiscono in fila
+  let handling: Promise<void> = Promise.resolve();
+  const checkHost = (p: Page) => {
+    const host = hostOf(p.url());
+    if (!host || !onNewHost || seenHosts.has(host)) return;
+    seenHosts.add(host);
+    handling = handling.then(async () => {
+      await p.waitForLoadState('domcontentloaded').catch(() => {});
+      const r = await onNewHost(p, host).catch((e) => ({ outcome: 'non-trovato' as const, detail: `gestione del banner non riuscita: ${(e as Error).message.split('\n')[0]}` }));
+      if (r) otherBanners.push({ host, url: maskPii(p.url()), ...r });
+    });
+  };
   const record = (p: Page) => {
+    checkHost(p);
     active = p;
     fromUrl(p.url());
     const url = maskPii(p.url());
@@ -239,6 +279,7 @@ export async function manualJourney(
 
   const endedBy = await done;
   onFinisher?.(null);
+  await handling.catch(() => {});
   clearInterval(timer);
   clearTimeout(limit);
   context.off('page', onPage);
@@ -259,6 +300,7 @@ export async function manualJourney(
     steps,
     ...(errorPages.length ? { errorPages } : {}),
     ...(extraTabs ? { extraTabs } : {}),
+    ...(otherBanners.length ? { otherBanners } : {}),
     ...(urlValues.size ? { urlValues: [...urlValues.values()] } : {}),
     lastPage: active,
   };
