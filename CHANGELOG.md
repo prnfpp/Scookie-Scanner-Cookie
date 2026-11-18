@@ -4,6 +4,10 @@
 
 Terza verifica della rilevazione (navigazioni manuali corrette, tre ripetizioni).
 
+- **Navigazione manuale: il riquadro con le istruzioni e "Ho finito" tornava a comparire.** Un apostrofo nel testo del
+  riquadro rompeva lo script iniettato nella pagina. Se il riquadro non si può mostrare, l'audit ora lo scrive nel registro.
+- **Interrompi:** dopo un arresto forzato non si può avviare un nuovo lavoro finché il vecchio non è davvero finito.
+- **Indirizzi con codifica `%` non valida:** risposta 400 invece di un errore del programma.
 - **Nomi digitati: solo parola intera.** Un nome o cognome di prova breve (es. "Test", "Rosa") non scatta più dentro altre
   parole degli indirizzi (`/ab-testing/`, `/prosa-e-poesia`), che producevano un falso "dati inseriti arrivano a…".
 - **CSV: i numeri negativi restano numeri** (millisecondi dalla scelta); la protezione dalle formule vale solo per i testi.

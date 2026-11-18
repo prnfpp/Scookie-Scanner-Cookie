@@ -171,6 +171,8 @@ export async function manualJourney(
    * del preventivo): ha un proprio banner, che va gestito come quello della pagina di partenza. Null se non c'è un banner.
    */
   onNewHost?: (page: Page, host: string) => Promise<Omit<ManualBanner, 'host' | 'url'> | null>,
+  /** Avvisi per l'operatore (es. il riquadro non si è potuto mostrare). */
+  log?: (msg: string) => void,
 ): Promise<ManualOutcome & { lastPage: Page }> {
   const started = Date.now();
   const context = page.context();
@@ -199,7 +201,8 @@ export async function manualJourney(
   await context.addInitScript(RECORDER);
   await page.evaluate(RECORDER).catch(() => {});
   await context.addInitScript(overlay);
-  await page.evaluate(overlay).catch(() => {});
+  // un errore nello script del riquadro non deve passare inosservato: senza riquadro l'operatore non ha il pulsante "Ho finito"
+  await page.evaluate(overlay).catch((e: Error) => log?.(`    ATTENZIONE: il riquadro con il pulsante "Ho finito" non si è potuto mostrare (${e.message.split('\n')[0]}). Usa "Ho finito" dall'interfaccia di Scookie.`));
 
   // Schede: la pagina attiva è l'ultima aperta o l'ultima che ha navigato; la sessione finisce quando sono tutte chiuse
   const open = new Set<Page>([page]);

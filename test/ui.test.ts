@@ -69,6 +69,8 @@ test('protezioni: solo da questo computer e solo dalla pagina dell\'interfaccia'
   assert.equal(await raw('/api/clienti', { host: ok.host, 'x-scookie': '1' }), 401, 'senza cookie');
   assert.equal(await raw('/api/clienti', { host: ok.host, cookie: ok.cookie }), 403, 'senza intestazione');
   assert.equal(await raw('/esecuzioni/..%2F..%2Fetc/passwd', ok), 400, 'percorso fuori dalla cartella');
+  assert.equal(await raw('/esecuzioni/%E0%A4%A/x', ok), 400, 'codifica % non valida: richiesta sbagliata, non errore del programma');
+  assert.equal(await raw('/api/clienti/%E0%A4%A', ok), 400);
   // la pagina si apre solo con la chiave della sessione (o col cookie già ricevuto): un altro utente dello
   // stesso computer che apre l'indirizzo non entra
   const key = new URL(ui.url).search;
