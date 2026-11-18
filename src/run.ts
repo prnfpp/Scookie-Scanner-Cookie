@@ -537,19 +537,22 @@ async function runAuditInner(loaded: LoadedConfig, opts: RunOptions, config: Aud
       return res;
     };
 
-    const manualPlans = jobs.flatMap((j) => j.plans.filter((p) => p.manual).map((p) => ({ j, p })));
-    if (manualPlans.length) {
-      log(`\nNavigazioni manuali (${manualPlans.length}): si fanno adesso, poi l'audit prosegue da solo.`);
+    // Le navigazioni manuali si fanno tutte all'inizio, tranne quelle dei siti con momento "al-sito": quelle partono
+    // subito prima dell'analisi del loro sito.
+    let previousTyped: string[] = [];
+    const runManual = async (subset: typeof jobs, intro: string) => {
+      const manualPlans = subset.flatMap((j) => j.plans.filter((p) => p.manual).map((p) => ({ j, p })));
+      if (!manualPlans.length) return;
+      log(`\nNavigazioni manuali (${manualPlans.length}): ${intro}`);
       progress.phase('manuale');
       try {
         // Le navigazioni successive alla prima riusano gli stessi dati: il riquadro li ricorda all'operatore
-        let previous: string[] = [];
         for (const { j, p } of manualPlans) {
-          const plan = previous.length && p.manual ? { ...p, manual: { ...p.manual, hint: `Usa gli stessi dati della navigazione precedente: ${previous.join('; ')}.` } } : p;
+          const plan = previousTyped.length && p.manual ? { ...p, manual: { ...p.manual, hint: `Usa gli stessi dati della navigazione precedente: ${previousTyped.join('; ')}.` } } : p;
           const res = await exec(j, plan);
           j.manual.push(res);
           const typed = typedValues(res.manual?.steps ?? []);
-          if (typed.length) previous = typed;
+          if (typed.length) previousTyped = typed;
         }
       } finally {
         // assegnato dentro exec: TypeScript non lo vede
@@ -559,7 +562,7 @@ async function runAuditInner(loaded: LoadedConfig, opts: RunOptions, config: Aud
       log('\nNavigazioni manuali concluse: da qui l\'audit prosegue da solo. Il computer deve restare acceso, sveglio e collegato a internet.');
       // La navigazione più completa di ogni sito diventa il percorso registrato: dalla prossima esecuzione si
       // rigioca in automatico, in ogni ripetizione, senza operatore.
-      for (const j of jobs) {
+      for (const j of subset) {
         const best = j.manual.filter((r) => r.manual?.endedBy === 'operatore' && r.manual.steps?.length && entersSite(r.manual.pages, j.site.url)).sort((a, b) => b.manual!.steps!.length - a.manual!.steps!.length)[0];
         if (!best) {
           if (j.manual.some((r) => r.manual?.steps?.length)) log(`Percorso di ${new URL(j.site.url).hostname} non salvato: la navigazione manuale non è entrata nel sito.`);
@@ -577,11 +580,16 @@ async function runAuditInner(loaded: LoadedConfig, opts: RunOptions, config: Aud
         log(`Percorso registrato (${rec.steps.length} passi) salvato in ${path}: dalla prossima esecuzione si rigioca in automatico.`);
       }
     }
+    const manualAtStart = jobs.filter((j) => j.site.navigazioneManuale?.momento !== 'al-sito');
+    await runManual(manualAtStart, 'si fanno adesso, poi l\'audit prosegue da solo.');
 
     checkStop();
     progress.phase('automatiche');
     for (const job of jobs) {
       const { site, d, decl } = job;
+      if (!manualAtStart.includes(job)) await runManual([job], `serve la tua presenza ora, per ${new URL(site.url).hostname}.`);
+      checkStop();
+      progress.phase('automatiche');
       const plans = job.plans.filter((p) => !p.manual);
       log(`\n[${site.url}] sessioni automatiche…`);
       const siteResults: SessionResult[] = [];
