@@ -244,7 +244,7 @@ ${d.notes.length ? `<ul class="muted">${d.notes.map((n) => `<li>${esc(n)}</li>`)
       const m = s.manual!;
       const end = m.endedBy === 'operatore' ? "conclusa dall'operatore" : m.endedBy === 'tempo' ? 'interrotta allo scadere del tempo massimo' : 'interrotta: finestra chiusa';
       parts.push(`<p><strong>Navigazione manuale</strong> — sessione ${esc(s.id)}, scenario "${esc(s.scenario)}", ${end} dopo ${m.seconds} s. Istruzioni date all'operatore: "${esc(m.instructions)}".${s.attributedFrom ? ` Pagine della navigazione per ${esc(host(s.attributedFrom.site))} che si trovano su questo sito.` : ''}${!s.attributedFrom && manualIncomplete(m) ? ' <strong>Probabilmente incompleta</strong> (breve o con una sola pagina): i fatti che ne derivano vanno confermati ripetendola.' : ''}</p>
-<ol class="muted">${m.pages.map((u) => `<li>${esc(u)}</li>`).join('')}</ol>`);
+<ol class="muted">${m.pages.map((u) => `<li>${esc(u)}</li>`).join('')}</ol>${m.otherBanners?.length ? `<p class="muted"><strong>Banner su altri siti raggiunti nella navigazione:</strong></p><ul class="muted">${m.otherBanners.map((b) => `<li>${esc(b.host)}: ${b.outcome === 'eseguito' ? `scelta eseguita (${esc(b.method ?? '')})` : b.outcome === 'non-gestito' ? 'banner visibile, nessuna scelta (scenario senza azione)' : 'scelta non eseguita da Scookie: i fatti su quel sito vanno letti con cautela'}</li>`).join('')}</ul>` : ''}`);
     }
     // Percorso registrato in una navigazione manuale precedente e rigiocato in automatico
     const replays = sessions.filter((x) => x.site === d.site && x.replay);

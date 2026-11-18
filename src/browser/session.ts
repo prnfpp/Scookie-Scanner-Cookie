@@ -65,6 +65,8 @@ export interface SessionEnv {
   manualDriver?: (page: Page) => Promise<void>;
   /** Riceve la funzione che chiude la navigazione manuale in corso (null quando non ce n'è una). */
   onManualFinisher?: (finish: (() => void) | null) => void;
+  /** Banner di un altro sito trovato nella navigazione manuale: serve all'interfaccia per dire all'operatore cosa fare. */
+  onBanner?: (b: { host: string; choice: 'rifiuta' | 'accetta' | null; status: 'gestito' | 'todo' | 'visibile'; detail: string }) => void;
   /** Avvisa l'operatore che una sessione manuale sta per iniziare. */
   log?: (msg: string) => void;
 }
@@ -268,11 +270,13 @@ export async function runSession(browser: Browser, plan: SessionPlan, env: Sessi
       env.log?.(`    nuovo sito nella navigazione manuale: ${host}; controllo del banner…`);
       if (plan.scenario === 'nessuna-azione') {
         const o = await observeBanner(p, own ? banner : undefined, bannerWait);
+        if (o.visible) env.onBanner?.({ host, choice: null, status: 'visibile', detail: '' });
         return o.visible ? { outcome: 'non-gestito' as const, detail: `banner visibile su ${host} (scenario senza azione)` } : null;
       }
       const choice = plan.scenario === 'rifiuta' ? 'rifiuta' : 'accetta';
       const r = await performChoice(p, choice, own ? banner : undefined, env.config.protocollo.attesaDopoScelta, bannerWait);
       if (r.outcome === 'non-applicabile') return null;
+      env.onBanner?.({ host, choice, status: r.outcome === 'eseguito' ? 'gestito' : 'todo', detail: r.detail });
       env.log?.(`    banner su ${host}: ${r.outcome === 'eseguito' ? `${choice} eseguito (${r.method})` : 'scelta non riuscita: gestirlo a mano'}`);
       return r.outcome === 'eseguito'
         ? { outcome: 'eseguito' as const, method: r.method, detail: r.detail }

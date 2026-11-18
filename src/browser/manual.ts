@@ -97,7 +97,7 @@ const OVERLAY = (instructions: string, siteHost: string, extra: string) => `(() 
     const p1 = css(document.createElement('p'), { margin: '4px 0', color: '#fff' });
     p1.textContent = ${JSON.stringify(instructions)};
     const p2 = css(document.createElement('p'), { margin: '4px 0', color: '#bbb' });
-    p2.textContent = 'Non toccare il banner dei cookie. Tutto ciò che accade viene registrato. Se apri una pagina sbagliata (es. errore 404) puoi tornare indietro: anche il ritorno viene registrato.';
+    p2.textContent = 'Non toccare il banner dei cookie, a meno che Scookie non lo chieda nell'interfaccia (banner di un altro sito non gestito). Tutto ciò che accade viene registrato. Se apri una pagina sbagliata (es. errore 404) puoi tornare indietro: anche il ritorno viene registrato.';
     body.append(p1, p2);
     if (${JSON.stringify(extra)}) {
       const p3 = css(document.createElement('p'), { margin: '4px 0', color: '#ffd60a' });

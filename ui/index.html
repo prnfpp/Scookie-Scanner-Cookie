@@ -407,7 +407,8 @@ dialog p { color: var(--ink-2); white-space: pre-wrap; }
     <div class="action hidden" id="job-action" role="alert">
       <div class="row spread"><h2>Tocca a te: navigazione manuale</h2><span class="chip warn">In attesa</span></div>
       <p>Si è aperta una finestra del browser e Scookie ha già fatto la scelta sul banner. Segui le istruzioni nel riquadro in basso a sinistra della finestra, poi premi <b>"Ho finito"</b>.</p>
-      <p class="small muted">Non toccare il banner dei cookie. Usa solo dati palesemente fittizi o concordati con il cliente: i moduli inviati arrivano davvero al sito e ai suoi fornitori.</p>
+      <p class="small muted">Non toccare il banner dei cookie, salvo avviso qui sotto. Usa solo dati palesemente fittizi o concordati con il cliente: i moduli inviati arrivano davvero al sito e ai suoi fornitori.</p>
+      <div class="stack hidden" id="job-banners" style="gap:8px"></div>
       <div class="row"><button class="btn primary" id="manual-done">Ho finito la navigazione</button><span class="small muted">Stesso effetto del pulsante nella finestra: usalo se il riquadro non si vede.</span></div>
     </div>
     <div class="msg warn hidden" id="job-offline"><b>Connessione assente: audit in pausa.</b><span class="fix">Scookie riprova da solo ogni 10 secondi e riprende da dove si era fermato. Controlla il Wi-Fi o che il computer non sia in stop.</span></div>
@@ -1268,6 +1269,13 @@ function renderAudit(j) {
   $('#now').innerHTML = running && pr ? `<span class="chip blue">${pr.total ? `Sessione ${Math.min(pr.done + 1, pr.total)} di ${pr.total}` : 'In corso'}</span><span>${esc(pr.current || '')}</span>` : '';
   $('#job-action').classList.toggle('hidden', !(running && pr && pr.waiting === 'manuale'));
   $('#job-offline').classList.toggle('hidden', !(running && pr && pr.waiting === 'connessione'));
+  const bn = (running && pr && pr.waiting === 'manuale' && pr.banners) || [];
+  $('#job-banners').classList.toggle('hidden', !bn.length);
+  $('#job-banners').innerHTML = bn.map((b) => b.status === 'gestito'
+    ? `<div class="msg"><b>Nuovo sito: ${esc(b.host)}.</b> Il banner è stato gestito da Scookie (${b.choice === 'accetta' ? 'accetta tutto' : 'rifiuta tutto'}). Non devi fare nulla.</div>`
+    : b.status === 'visibile'
+      ? `<div class="msg"><b>Nuovo sito: ${esc(b.host)}.</b> Ha un banner dei cookie: in questo scenario non si fa nessuna scelta, lascialo com'è e prosegui.</div>`
+      : `<div class="msg warn"><b>Nuovo sito: ${esc(b.host)}. Scookie non è riuscito a gestire il banner.</b><span class="fix"><b>Cosa fare:</b> nella finestra del browser, su ${esc(b.host)}, premi tu ${b.choice === 'accetta' ? '«Accetta tutto»' : '«Rifiuta tutto»'} (o il comando equivalente; se non c'è un pulsante diretto, apri «Personalizza» e conferma senza selezionare nulla), aspetta che il banner si chiuda e poi continua il percorso. Non serve ricominciare l'audit: il clic viene registrato come gli altri e la nota resta nel rapporto.</span></div>`).join('');
   $('#sites-prog').innerHTML = pr && pr.sites.length
     ? pr.sites.map((s) => `<div class="sp"><span>${esc(host(s.site))}</span><div class="bar"><i style="width:${s.total ? (s.done / s.total) * 100 : 0}%"></i></div><span class="muted small" style="font-variant-numeric:tabular-nums">${s.done}/${s.total}</span></div>`).join('')
     : '<p class="muted small">Compare dopo la ricerca delle pagine.</p>';
