@@ -73,6 +73,11 @@ const siteSchema = z
         partenza: z.string().optional(),
         scenari: z.array(z.enum(['nessuna-azione', 'rifiuta', 'accetta'])).min(1).default(['rifiuta', 'accetta']),
         maxMinuti: z.number().positive().max(60).default(10),
+        /**
+         * Quando chiedere la navigazione: "inizio" (predefinito) le fa tutte prima dell'analisi, così dopo i primi minuti
+         * si può lasciare il computer; "al-sito" la chiede solo quando inizia l'analisi di questo sito.
+         */
+        momento: z.enum(['inizio', 'al-sito']).default('inizio'),
       })
       .strict()
       .optional(),
