@@ -65,6 +65,8 @@ export interface SessionEnv {
   manualDriver?: (page: Page) => Promise<void>;
   /** Riceve la funzione che chiude la navigazione manuale in corso (null quando non ce n'è una). */
   onManualFinisher?: (finish: (() => void) | null) => void;
+  /** Banner di un altro sito trovato nella navigazione manuale: serve all'interfaccia per dire all'operatore cosa fare. */
+  onBanner?: (b: { host: string; choice: 'rifiuta' | 'accetta' | null; status: 'gestito' | 'todo' | 'visibile'; detail: string }) => void;
   /** Avvisa l'operatore che una sessione manuale sta per iniziare. */
   log?: (msg: string) => void;
 }
@@ -261,11 +263,32 @@ export async function runSession(browser: Browser, plan: SessionPlan, env: Sessi
   };
   const runManual = async () => {
     env.log?.(`    NAVIGAZIONE MANUALE: nella finestra del browser segui le istruzioni e premi "Ho finito" (massimo ${Math.round(plan.manual!.maxMs / 60000)} minuti).`);
-    const { lastPage, ...m } = await manualJourney(page, collector, plan.manual!, env.manualDriver, env.onManualFinisher);
+    const { lastPage, ...m } = await manualJourney(page, collector, plan.manual!, env.manualDriver, env.onManualFinisher, async (p, host) => {
+      // Altro sito raggiunto durante la navigazione: ha il suo banner. Si gestisce come quello di partenza (stessa scelta),
+      // con i selettori della configurazione solo se è il sito del controllo.
+      const own = host === plan.site.replace(/^https?:\/\/(www\.)?/, '').replace(/[/:].*$/, '');
+      env.log?.(`    nuovo sito nella navigazione manuale: ${host}; controllo del banner…`);
+      if (plan.scenario === 'nessuna-azione') {
+        const o = await observeBanner(p, own ? banner : undefined, bannerWait);
+        if (o.visible) env.onBanner?.({ host, choice: null, status: 'visibile', detail: '' });
+        return o.visible ? { outcome: 'non-gestito' as const, detail: `banner visibile su ${host} (scenario senza azione)` } : null;
+      }
+      const choice = plan.scenario === 'rifiuta' ? 'rifiuta' : 'accetta';
+      const r = await performChoice(p, choice, own ? banner : undefined, env.config.protocollo.attesaDopoScelta, bannerWait);
+      if (r.outcome === 'non-applicabile') return null;
+      env.onBanner?.({ host, choice, status: r.outcome === 'eseguito' ? 'gestito' : 'todo', detail: r.detail });
+      env.log?.(`    banner su ${host}: ${r.outcome === 'eseguito' ? `${choice} eseguito (${r.method})` : 'scelta non riuscita: gestirlo a mano'}`);
+      return r.outcome === 'eseguito'
+        ? { outcome: 'eseguito' as const, method: r.method, detail: r.detail }
+        : { outcome: 'non-trovato' as const, detail: r.detail };
+    });
     manual = m;
     shotPage = lastPage;
     env.log?.(`    navigazione manuale conclusa (${manual.endedBy === 'operatore' ? 'premuto "Ho finito"' : manual.endedBy === 'tempo' ? 'tempo scaduto' : 'finestra chiusa'})`);
     if (manual.errorPages?.length) errors.push(`navigazione manuale: ${manual.errorPages.length === 1 ? 'una pagina ha' : `${manual.errorPages.length} pagine hanno`} risposto con un errore (${manual.errorPages.slice(0, 3).map((e) => `${e.status} su ${e.url}`).join('; ')}); le pagine restano nel percorso, i fatti osservati lì valgono come quelli delle altre pagine. Se le stesse pagine si aprono in un browser comune, la differenza può dipendere dallo user agent dello strumento (alcuni siti rispondono diversamente ai browser automatizzati o che si dichiarano tali): per verificarlo serve un'esecuzione di controllo con browser.uaNormale`);
+    for (const b of manual.otherBanners ?? []) {
+      if (b.outcome !== 'eseguito') errors.push(`navigazione manuale: banner su ${b.host} ${b.outcome === 'non-gestito' ? 'visibile, non toccato' : 'non gestito automaticamente'} (${b.detail.slice(0, 160)}): i fatti osservati su quel sito dopo il banner non vanno letti come dopo una scelta`);
+    }
     if (manualIncomplete(manual)) {
       const note = `navigazione manuale probabilmente incompleta: conclusa dopo ${manual.seconds} s con ${manual.pages.length === 1 ? 'una sola pagina' : `${manual.pages.length} pagine`} visitate; va rifatta`;
       errors.push(note);

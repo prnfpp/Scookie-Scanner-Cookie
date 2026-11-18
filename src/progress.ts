@@ -11,13 +11,15 @@ export interface Progress {
   /** Secondi rimanenti stimati (null finché il totale non è noto). */
   etaSec: number | null;
   sites: { site: string; done: number; total: number }[];
+  /** Banner di altri siti incontrati nella navigazione manuale in corso: `todo` se tocca all'operatore gestirlo. */
+  banners: { host: string; choice: 'rifiuta' | 'accetta' | null; status: 'gestito' | 'todo' | 'visibile'; detail: string }[];
 }
 
 /** Durata ipotizzata di una sessione prima di averne misurata una. */
 const DEFAULT_SESSION_SEC = 30;
 
 export class ProgressTracker {
-  private p: Progress = { phase: 'uscita', done: 0, total: 0, current: null, waiting: null, etaSec: null, sites: [] };
+  private p: Progress = { phase: 'uscita', done: 0, total: 0, current: null, waiting: null, etaSec: null, sites: [], banners: [] };
   private autoSec: number[] = [];
   private autoLeft = 0;
 
@@ -82,8 +84,14 @@ export class ProgressTracker {
     this.send();
   }
 
+  banner(b: Progress['banners'][number]) {
+    this.p.banners = [...this.p.banners.filter((x) => x.host !== b.host), b];
+    this.send();
+  }
+
   wait(kind: Progress['waiting']) {
     this.p.waiting = kind;
+    if (kind === 'manuale') this.p.banners = [];
     this.send();
   }
 }

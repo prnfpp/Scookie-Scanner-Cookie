@@ -516,6 +516,7 @@ async function runAuditInner(loaded: LoadedConfig, opts: RunOptions, config: Aud
         userAgent: plan.manual && manualBrowser && manualUserAgent ? manualUserAgent : userAgent,
         manualDriver: opts.manualDriver,
         onManualFinisher: opts.onManualFinisher,
+        onBanner: (b) => progress.banner(b),
         log,
         onDeclared: decl.source
           ? undefined
