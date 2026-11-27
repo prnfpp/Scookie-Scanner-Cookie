@@ -44,3 +44,16 @@ test('informativa ospitata dal gestore del consenso', () => {
   assert.ok(!HOSTED_POLICY_HOSTS.test('avacy.eu.esempio.it'));
   assert.ok(!HOSTED_POLICY_HOSTS.test('notiubenda.com'));
 });
+
+test('avacy, personalizza: "solo statistica" = Google Analytics senza pubblicità né profilazione', async () => {
+  const { checkAvacyStats, PERSONALIZERS } = await import('../src/cmp/personalize.js');
+  assert.ok(PERSONALIZERS.avacy);
+  const p = (on: string[]) => Object.fromEntries(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'].map((k) => [k, on.includes(k)]));
+  assert.equal(checkAvacyStats({ purposes: p(['1', '8', '9']), gcm: ['analytics_storage'] }).consistent, true);
+  // pubblicità in Consent Mode o finalità 7 (misura degli annunci): non è solo statistica
+  assert.equal(checkAvacyStats({ purposes: p(['1', '8', '9']), gcm: ['analytics_storage', 'ad_storage'] }).consistent, false);
+  assert.equal(checkAvacyStats({ purposes: p(['1', '7', '8', '9']), gcm: ['analytics_storage'] }).consistent, false);
+  // statistica non accettata
+  assert.equal(checkAvacyStats({ purposes: p([]), gcm: [] }).consistent, false);
+  assert.equal(checkAvacyStats(null).consistent, null);
+});

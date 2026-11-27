@@ -5,6 +5,10 @@
 - **Nuovo adattatore Avacy** (OIL.js, `window.AVACY`). Esegue accetta, rifiuta e revoca. Il rifiuto dal centro
   preferenze passa per "Disattiva tutto" e poi "Salva". La revoca passa dallo scudo fluttuante e dal suo link "Preferenze
   sui cookie". Verifica lo stato con finalità TCF, terze parti dell'editore e segnali Consent Mode.
+- **Avacy, scenario personalizza ("solo statistica").** Attivi solo gli strumenti analitici per dati aggregati
+  (Consent Mode `analytics_storage`, finalità TCF 1, 8 e 9, terze parti di statistica come Google Analytics). Spenti
+  pubblicità, profilazione e le altre terze parti, compresa Microsoft Clarity che registra le singole sessioni.
+  La verifica legge lo stato registrato da Avacy.
 - **"Accetta cookie"** è riconosciuto come accettazione dall'euristica (prima valeva solo "Accetta i cookie").
 - **"Maggiori informazioni" apre le preferenze solo se è un pulsante**, non un link a un'altra pagina.
 - **Informativa ospitata dal gestore del consenso** (api.avacy.eu, iubenda.com): vale come informativa del sito.
