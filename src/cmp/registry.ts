@@ -1,4 +1,5 @@
 import { onetrust } from './adapters/onetrust.js';
+import { avacy } from './adapters/avacy.js';
 import { complianz } from './adapters/complianz.js';
 import { cookiebot } from './adapters/cookiebot.js';
 import { cookieyes } from './adapters/cookieyes.js';
@@ -14,4 +15,4 @@ import type { CmpAdapter } from './types.js';
  * Adattatori in ordine di tentativo. Per aggiungere un CMP: creare il modulo in ./adapters
  * e inserirlo qui. TCF va per ultimo: legge lo stato ma non interagisce.
  */
-export const ADAPTERS: CmpAdapter[] = [onetrust, cookiebot, iubenda, didomi, usercentrics, cookieyes, complianz, hubspot, vanillaCookieconsent, tcf];
+export const ADAPTERS: CmpAdapter[] = [onetrust, cookiebot, iubenda, didomi, usercentrics, cookieyes, complianz, hubspot, vanillaCookieconsent, avacy, tcf];

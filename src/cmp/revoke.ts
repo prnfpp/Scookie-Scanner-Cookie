@@ -36,6 +36,9 @@ export const REVOKE_SELECTORS = [
   '#hs-eu-cookie-settings-button',
   '[href*="showBanner"]',
   '[onclick*="showBanner"]',
+  // Avacy: link "Preferenze sui cookie" (AVACY.showPreferenceCenter) e scudo fluttuante che apre il menu con quel link
+  '[onclick*="showPreferenceCenter"]',
+  '#avacy-floating-resurface .as-js-show-resurface-tooltip',
 ];
 
 export const REVOKE_TEXT =

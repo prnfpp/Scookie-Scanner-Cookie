@@ -1,7 +1,7 @@
 import type { Page } from 'playwright';
 import type { BannerAnalysis, CommandLook } from '../types.js';
 import { describeElement, frames, waitFor } from './dom.js';
-import { TEXTS, clickCandidate, consentFrames, scan, type Candidate } from './heuristic.js';
+import { TEXTS, clickCandidate, consentFrames, isPreferences, scan, type Candidate } from './heuristic.js';
 import { isShown } from './visibility.js';
 import { findRevokeInPage } from './revoke.js';
 import type { CmpAdapter } from './types.js';
@@ -33,7 +33,7 @@ function classify(candidates: Candidate[]) {
   return {
     accept: pick(TEXTS.accept),
     reject: pick(TEXTS.reject),
-    preferences: pick(TEXTS.preferences),
+    preferences: [...new Set(candidates.filter(isPreferences).map((c) => c.text))],
     close: pick(CLOSE_LIKE),
     all: [...new Set(candidates.map((c) => c.text))],
   };
@@ -62,7 +62,9 @@ export async function analyzeBanner(page: Page, adapters: CmpAdapter[], shot: (l
       }
     }
   }
-  const policy = candidates.find((c) => c.href && POLICY_TEXT.test(c.text));
+  // con "Privacy Policy" e "Cookie Policy" nel banner si prende la cookie policy
+  const policies = candidates.filter((c) => c.href && POLICY_TEXT.test(c.text));
+  const policy = policies.find((c) => /cookie/i.test(c.text)) ?? policies[0];
 
   // Modo per riaprire le preferenze nella pagina, fuori dal banner (gli elementi del banner sono marcati dallo scan).
   const found = await findRevokeInPage(page);
@@ -83,7 +85,7 @@ export async function analyzeBanner(page: Page, adapters: CmpAdapter[], shot: (l
 
   // Secondo livello: si apre "Preferenze/Personalizza" e si leggono gli interruttori delle categorie, senza salvare.
   let preferences: BannerAnalysis['preferences'] = null;
-  const prefsButton = candidates.find((c) => TEXTS.preferences.test(c.text));
+  const prefsButton = candidates.find(isPreferences);
   if (banner && prefsButton) {
     try {
       const opened = await clickCandidate(prefsButton);

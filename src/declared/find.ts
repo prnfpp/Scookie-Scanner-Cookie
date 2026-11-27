@@ -8,6 +8,12 @@ import { closeSafely } from '../util/misc.js';
 /** Percorsi comuni delle informative (WordPress e temi diffusi), provati quando nessun link porta a una pagina valida. */
 export const COMMON_POLICY_PATHS = ['/privacy-policy/', '/cookie-policy/', '/privacy/', '/informativa-privacy/', '/informativa-cookie/', '/cookie/'];
 
+/**
+ * Servizi che pubblicano l'informativa per conto del sito (es. Avacy su api.avacy.eu, iubenda su iubenda.com): un link
+ * del sito, o un suo reindirizzamento, che porta lì vale come informativa del sito.
+ */
+export const HOSTED_POLICY_HOSTS = /(^|\.)(avacy\.eu|iubenda\.com)$/i;
+
 export interface PolicyCandidate {
   url: string;
   how: string;
@@ -30,7 +36,8 @@ export async function findPolicy(
   const domain = registrableDomain(new URL(o.site).hostname);
   const sameSite = (u: string) => {
     try {
-      return registrableDomain(new URL(u).hostname) === domain;
+      const host = new URL(u).hostname;
+      return registrableDomain(host) === domain || HOSTED_POLICY_HOSTS.test(host);
     } catch {
       return false;
     }

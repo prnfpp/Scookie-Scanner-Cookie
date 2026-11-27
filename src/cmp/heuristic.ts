@@ -10,15 +10,27 @@ export const TEXTS = {
   reject:
     /^(rifiut[ao]( tutt[ioe])?( i cookie)?|rifiuto|nega( tutt[ioe])?|non accetto|non acconsento|solo (i )?(cookie )?(necessari|tecnici|essenziali)|accetta solo (i )?(cookie )?(necessari|tecnici|essenziali)|usa solo (i )?(cookie )?(necessari|tecnici)|continua senza accettare|prosegui senza accettare|reject( all)?( cookies)?|decline( all)?( cookies)?|deny( all)?|refuse( all)?|only (necessary|essential)( cookies)?|(use )?necessary( cookies)? only|continue without accepting)$/i,
   accept:
-    /^(accett[ao]( tutt[ioe])?( i cookie)?( e chiudi| e continua| e prosegui)?|acconsento|consenti( tutt[ioe])?|ok|va bene|ho capito|accept( all)?( cookies)?|allow( all)?( cookies)?|agree( and close)?|i agree|got it)$/i,
+    /^(accett[ao]( tutt[ioe])?( i)?( cookies?)?( e chiudi| e continua| e prosegui)?|acconsento|consenti( tutt[ioe])?|ok|va bene|ho capito|accept( all)?( cookies)?|allow( all)?( cookies)?|agree( and close)?|i agree|got it)$/i,
   preferences:
     /(personalizza|impostazion|preferenz|gestisci|gestione|maggiori opzioni|altre opzioni|scopri di più|customi[sz]e|settings|manage|more options|options)/i,
+  /**
+   * Testi generici che in alcuni banner aprono le preferenze (es. Avacy "Maggiori informazioni") ma che altrove sono
+   * link all'informativa: valgono come preferenze solo se l'elemento non porta a un'altra pagina (vedi isPreferences).
+   */
+  preferencesIfButton: /^(maggiori informazioni|più informazioni|ulteriori informazioni|more info(rmation)?|learn more)$/i,
   preferencesReject: /^(rifiut[ao]( tutt[ioe])?|nega( tutt[ioe])?|reject( all)?|deny( all)?|decline( all)?)$/i,
   preferencesSave:
     /^(salva( e chiudi| e esci)?( le)?( mie)?( preferenze| scelte| impostazioni| selezion[ei])?|conferma( le)?( mie)?( scelte| selezion[ei]| preferenze)?|save( and close| and exit)?( my)?( preferences| settings| choices)?|confirm( my)?( choices| selection)?)$/i,
   // anche le etichette per l'accessibilità, es. "Dismiss cookie banner", "Chiudi il banner dei cookie"
   close: /^(×|✕|✖|✗|x|chiudi|close|dismiss)$|^(chiudi|close|dismiss)\b.{0,40}\b(banner|cookies?|avviso|messaggio|finestra|dialog(o|ue)?|popup|notice)$/i,
 };
+
+/** Comando che apre le preferenze: testo esplicito, oppure testo generico su un pulsante che non è un link a una pagina. */
+export function isPreferences(c: { text: string; href?: string | null }): boolean {
+  if (TEXTS.preferences.test(c.text)) return true;
+  if (!TEXTS.preferencesIfButton.test(c.text)) return false;
+  return !c.href || /^javascript:|#$/i.test(c.href);
+}
 
 export interface Candidate {
   index: number;
@@ -218,7 +230,7 @@ export async function heuristicChoose(page: Page, choice: Choice): Promise<Choic
   if (close) {
     return done('chiusura-x', await clickCandidate(close));
   }
-  const prefs = pick(candidates, TEXTS.preferences);
+  const prefs = candidates.find(isPreferences);
   if (prefs) {
     const first = await clickCandidate(prefs);
     let second: Candidate | undefined;
