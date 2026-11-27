@@ -259,11 +259,99 @@ const complianz: Personalizer = {
 };
 
 /** Personalizzatori per id di adattatore. */
+/* ---------------- Avacy ---------------- */
+
+/**
+ * "Solo statistica" (linee guida del Garante): attivi i soli strumenti analitici che raccolgono dati aggregati su
+ * traffico e uso del sito; bloccati profilazione e marketing. Nel centro preferenze di Avacy vuol dire:
+ * - Google Consent Mode: attivo solo analytics_storage;
+ * - finalità TCF: attive 1 (archiviazione sul dispositivo, necessaria ai cookie analitici), 8 (misurare le prestazioni
+ *   dei contenuti) e 9 (statistiche sul pubblico); spente le altre, compresa la 7 (misura degli annunci, marketing);
+ * - terze parti: attive solo quelle di statistica (Google Analytics, Matomo); spente le altre, compresa Microsoft
+ *   Clarity, che registra le singole sessioni e non dati aggregati.
+ */
+export const AVACY_STATS = {
+  gcm: ['analytics_storage'],
+  purposes: ['1', '8', '9'],
+  vendorName: /google analytics|matomo|piwik/i,
+};
+const AVACY_CPC = '.as-oil #as-oil-cpc';
+
+export function checkAvacyStats(s: { purposes?: Record<string, boolean> | null; gcm?: string[] | null } | null): ConsentCheck {
+  if (!s || !s.purposes || !s.gcm) return { consistent: null, detail: 'stato di Avacy non leggibile' };
+  const purposes = Object.entries(s.purposes).filter(([, v]) => v === true).map(([k]) => k);
+  const state = `Consent Mode: ${s.gcm.join(', ') || 'nessuno'}; finalità TCF: ${purposes.join(', ') || 'nessuna'}`;
+  if (!s.gcm.includes('analytics_storage')) return { consistent: false, detail: `Avacy: statistica non accettata (${state})` };
+  const extraGcm = s.gcm.filter((g) => !AVACY_STATS.gcm.includes(g));
+  const extraPurposes = purposes.filter((p) => !AVACY_STATS.purposes.includes(p));
+  if (extraGcm.length || extraPurposes.length) {
+    return { consistent: false, detail: `Avacy: accettato anche ${[...extraGcm, ...extraPurposes.map((p) => `finalità ${p}`)].join(', ')} (${state})` };
+  }
+  return { consistent: true, detail: `Avacy: accettata solo la statistica (${state})` };
+}
+
+const avacyPersonalizer: Personalizer = {
+  async choose(page, mode) {
+    if (mode === 'api') return null;
+    const steps: string[] = [];
+    const open = await clickFirst(page, ['.as-oil #as-oil-first-layer .as-js-advanced-settings']);
+    if (!open) return { ok: false, layer: null, via: null, detail: 'pulsante "Maggiori informazioni" di Avacy non trovato' };
+    steps.push(open.label);
+    if (!(await waitFor(async () => (await page.locator(`${AVACY_CPC} input[type=checkbox]`).count()) > 0, 5000, 300))) {
+      return { ok: false, layer: null, via: null, detail: 'centro preferenze di Avacy non aperto' };
+    }
+    // Gli interruttori stanno in schede diverse (Finalità, Finalità IAB, Terze parti…): si cambiano con un click
+    // sull'input, che fa scattare gli stessi eventi dell'interruttore grafico anche nelle schede non visibili.
+    const changed = (await page
+      .locator(`${AVACY_CPC} input[type=checkbox]`)
+      .evaluateAll(
+        (inputs, want) => {
+          const out: string[] = [];
+          const vendorRe = new RegExp(want.vendorSrc, 'i');
+          for (const el of inputs as HTMLInputElement[]) {
+            if (el.disabled) continue;
+            const id = el.id;
+            let on: boolean | null = null;
+            let m: RegExpMatchArray | null;
+            if ((m = id.match(/gcmPurpose-slider-(.+)$/))) on = want.gcm.includes(m[1]);
+            else if ((m = id.match(/^as-js-purpose-slider-(\d+)$/))) on = want.purposes.includes(m[1]);
+            else if (/vendor-slider-/.test(id)) {
+              let n: HTMLElement | null = el;
+              while (n && (n.innerText || '').trim().length < 4) n = n.parentElement;
+              on = vendorRe.test((n?.innerText || '').split('\n')[0]);
+            }
+            if (on === null || el.checked === on) continue;
+            el.click();
+            let n: HTMLElement | null = el;
+            while (n && (n.innerText || '').trim().length < 4) n = n.parentElement;
+            out.push(`${on ? 'attivazione' : 'disattivazione'} di "${(n?.innerText || id).trim().split('\n')[0].slice(0, 60)}"`);
+          }
+          return out;
+        },
+        { gcm: AVACY_STATS.gcm, purposes: AVACY_STATS.purposes, vendorSrc: AVACY_STATS.vendorName.source },
+      )
+      .catch(() => null)) as string[] | null;
+    if (!changed) return { ok: false, layer: null, via: null, detail: 'interruttori del centro preferenze di Avacy non leggibili' };
+    steps.push(...changed);
+    const save = await clickFirst(page, [`${AVACY_CPC} .as-js-optin`]);
+    if (!save) return { ok: false, layer: null, via: null, detail: 'pulsante "Salva" di Avacy non trovato' };
+    steps.push(save.label);
+    return result('click', 'solo statistica: Google Analytics (Consent Mode analytics_storage, finalità TCF 1, 8, 9, terze parti di statistica); pubblicità, profilazione e altre terze parti disattivate', steps);
+  },
+  async check(page) {
+    const s = (await page
+      .evaluate(`(async () => { const st = await window.AVACY.status(); return { purposes: await window.AVACY.getPurposeConsents(), gcm: st && st.gcm }; })()`)
+      .catch(() => null)) as Parameters<typeof checkAvacyStats>[0];
+    return checkAvacyStats(s);
+  },
+};
+
 export const PERSONALIZERS: Record<string, Personalizer> = {
   onetrust,
   cookiebot,
   complianz,
   'vanilla-cookieconsent': vanilla,
+  avacy: avacyPersonalizer,
 };
 
 /* ---------------- Generico (banner sconosciuti, HubSpot) ---------------- */
