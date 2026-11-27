@@ -2,6 +2,14 @@
 
 ## Non rilasciato
 
+- **Pannelli di preferenze estesi (TCF) non riconosciuti** (es. gazzetta.it: 1240 fornitori, oltre 16.000 caratteri
+  visibili): il limite di 5.000 caratteri usato per riconoscere il banner escludeva il pannello vero, lasciando come
+  unico candidato un elemento estraneo senza pulsanti. Il limite è ora 20.000 caratteri.
+- **"Rifiuta" che non rifiuta nulla, su un pay-or-consent wall.** Alcuni pannelli trattano "Rifiuta tutto" come un
+  interruttore collettivo che non chiude da solo il banner: serve un salvataggio a parte, a volte raggiungibile solo
+  passando per un'offerta a pagamento (es. gazzetta.it: "Salva e abbonati", 9,99€/anno). Scookie ora verifica che il
+  banner si chiuda davvero dopo "Rifiuta tutto"; se resta aperto e l'unico salvataggio rimanda a un pagamento o
+  abbonamento, non lo clicca (non esegue mai acquisti) e riporta l'esito reale invece di un falso "rifiuto eseguito".
 - **Pulsanti trasparenti sopra l'etichetta** (es. Amazon: `<input type="submit" value="Rifiuta">` con opacità 0.01
   dentro un riquadro visibile): ora l'euristica li legge e li clicca. Prima li scartava come invisibili e su amazon.it
   il rifiuto non veniva eseguito.
