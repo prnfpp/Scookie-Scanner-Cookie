@@ -21,9 +21,20 @@ export const TEXTS = {
   preferencesReject: /^(rifiut[ao]( tutt[ioe])?|nega( tutt[ioe])?|reject( all)?|deny( all)?|decline( all)?)$/i,
   preferencesSave:
     /^(salva( e chiudi| e esci)?( le)?( mie)?( preferenze| scelte| impostazioni| selezion[ei])?|conferma( le)?( mie)?( scelte| selezion[ei]| preferenze)?|save( and close| and exit)?( my)?( preferences| settings| choices)?|confirm( my)?( choices| selection)?)$/i,
+  /**
+   * Più ampio di preferencesSave: usato solo per cercare un secondo pulsante di salvataggio quando "Rifiuta tutto"
+   * nelle preferenze ha solo spento gli interruttori, senza chiudere il banner (es. "Salva e abbonati").
+   */
+  saveLike: /^(salva|conferma|applica|invia|continua|prosegui|ok|save|confirm|apply|submit|continue)\b.{0,40}$/i,
   // anche le etichette per l'accessibilità, es. "Dismiss cookie banner", "Chiudi il banner dei cookie"
   close: /^(×|✕|✖|✗|x|chiudi|close|dismiss)$|^(chiudi|close|dismiss)\b.{0,40}\b(banner|cookies?|avviso|messaggio|finestra|dialog(o|ue)?|popup|notice)$/i,
 };
+
+/**
+ * Il salvataggio porta a un'offerta a pagamento (un "pay or consent wall"): Scookie non la clicca, perché non
+ * eseguirebbe un rifiuto gratuito ma il primo passo di un acquisto o di un abbonamento.
+ */
+export const PAYWALL_TEXT = /abbonat|iscriv|subscri|premium|upgrade|acquist|\bpay\b|payment|checkout|carrello|\bcart\b/i;
 
 /** Comando che apre le preferenze: testo esplicito, oppure testo generico su un pulsante che non è un link a una pagina. */
 export function isPreferences(c: { text: string; href?: string | null }): boolean {
@@ -103,6 +114,16 @@ async function scanFrame(frame: Frame, role: FrameRole): Promise<{ banner: boole
           const s = getComputedStyle(el);
           return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none' && Number(s.opacity) > 0.05;
         };
+        // Pulsante trasparente sovrapposto alla sua etichetta (es. Amazon: <input type="submit" value="Rifiuta"> con
+        // opacità 0.01 dentro un riquadro visibile): l'utente vede e clicca il riquadro, quindi il comando è visibile.
+        const visibleControl = (el: Element) => {
+          if (visible(el)) return true;
+          const parent = el.parentElement;
+          if (!el.matches('input[type="submit"], input[type="button"], button') || !parent || !visible(parent)) return false;
+          const r = el.getBoundingClientRect();
+          const s = getComputedStyle(el);
+          return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none';
+        };
         const kw = /cookie|consenso|consent|tracciament|privacy/i;
         const textOf = (el: Element) => ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
         // Contenitori dei gestori noti visibili: solo i più esterni
@@ -118,7 +139,11 @@ async function scanFrame(frame: Frame, role: FrameRole): Promise<{ banner: boole
             // un singolo pulsante fluttuante (es. "Gestisci consenso" dopo la scelta) non è un banner
             if (el.matches('button, a, [role="button"], input')) return false;
             const t = textOf(el);
-            return t.length < 5000 && kw.test(t);
+            // Un pannello di preferenze con molte finalità e fornitori (TCF) può superare largamente i 5.000
+            // caratteri già nel primo livello visibile, senza bisogno di espandere nulla: un limite troppo basso lo
+            // esclude, lasciando come unico candidato un elemento estraneo (es. testo fuori schermo per lettori
+            // di schermo) che corrisponde per caso e non contiene alcun pulsante.
+            return t.length < 20000 && kw.test(t);
           });
         }
         // In un iframe dedicato al consenso il banner è l'intero documento.
@@ -135,7 +160,7 @@ async function scanFrame(frame: Frame, role: FrameRole): Promise<{ banner: boole
           collect(b);
           if (b.shadowRoot) collect(b.shadowRoot);
           for (const el of inner) {
-            if (seen.has(el) || !visible(el)) continue;
+            if (seen.has(el) || !visibleControl(el)) continue;
             seen.add(el);
             const raw = textOf(el) || (el as HTMLInputElement).value || el.getAttribute('aria-label') || el.getAttribute('title') || '';
             const text = raw.replace(/\s+/g, ' ').replace(/[›»→>]+$/, '').trim();
@@ -244,7 +269,35 @@ export async function heuristicChoose(page: Page, choice: Choice): Promise<Choic
       500,
     );
     if (second) {
-      return done('secondo-livello', first, await clickCandidate(second));
+      const secondLabel = await clickCandidate(second);
+      // Alcuni pannelli trattano "Rifiuta tutto" come un interruttore collettivo che non chiude da solo il banner:
+      // serve un salvataggio a parte, a volte raggiungibile solo passando per un'offerta a pagamento (pay or
+      // consent wall). Se il banner resta visibile oltre l'attesa, si cerca un secondo pulsante di salvataggio,
+      // diverso dal primo; un testo che rimanda a un pagamento o abbonamento non viene cliccato: Scookie non
+      // esegue mai acquisti, e cliccarlo non equivarrebbe comunque a un rifiuto gratuito.
+      const closed = await waitFor(async () => !(await heuristicBannerVisible(page)), 2500, 300);
+      if (!closed) {
+        const again = (await scan(page)).candidates;
+        const save = again.find((c) => c.text !== second!.text && TEXTS.saveLike.test(c.text));
+        if (save && PAYWALL_TEXT.test(save.text)) {
+          return {
+            ok: false,
+            layer: null,
+            via: null,
+            detail: `aperte le preferenze con "${prefs.text}", poi su "${secondLabel}", ma il salvataggio porta a un'offerta a pagamento ("${save.text}"): nessun rifiuto gratuito applicato`,
+          };
+        }
+        if (save) {
+          return done('secondo-livello', first, secondLabel, await clickCandidate(save));
+        }
+        return {
+          ok: false,
+          layer: null,
+          via: null,
+          detail: `aperte le preferenze con "${prefs.text}", poi su "${secondLabel}", ma il banner resta visibile e nessun pulsante di salvataggio è stato trovato`,
+        };
+      }
+      return done('secondo-livello', first, secondLabel);
     }
     return { ok: false, layer: null, via: null, detail: `aperte le preferenze con "${prefs.text}" ma nessun pulsante di rifiuto o salvataggio trovato` };
   }
