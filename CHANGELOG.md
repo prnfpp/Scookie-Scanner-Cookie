@@ -2,6 +2,9 @@
 
 ## Non rilasciato
 
+- **Pulsanti trasparenti sopra l'etichetta** (es. Amazon: `<input type="submit" value="Rifiuta">` con opacità 0.01
+  dentro un riquadro visibile): ora l'euristica li legge e li clicca. Prima li scartava come invisibili e su amazon.it
+  il rifiuto non veniva eseguito.
 - **Nuovo adattatore Avacy** (OIL.js, `window.AVACY`). Esegue accetta, rifiuta e revoca. Il rifiuto dal centro
   preferenze passa per "Disattiva tutto" e poi "Salva". La revoca passa dallo scudo fluttuante e dal suo link "Preferenze
   sui cookie". Verifica lo stato con finalità TCF, terze parti dell'editore e segnali Consent Mode.

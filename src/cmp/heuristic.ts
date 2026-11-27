@@ -103,6 +103,16 @@ async function scanFrame(frame: Frame, role: FrameRole): Promise<{ banner: boole
           const s = getComputedStyle(el);
           return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none' && Number(s.opacity) > 0.05;
         };
+        // Pulsante trasparente sovrapposto alla sua etichetta (es. Amazon: <input type="submit" value="Rifiuta"> con
+        // opacità 0.01 dentro un riquadro visibile): l'utente vede e clicca il riquadro, quindi il comando è visibile.
+        const visibleControl = (el: Element) => {
+          if (visible(el)) return true;
+          const parent = el.parentElement;
+          if (!el.matches('input[type="submit"], input[type="button"], button') || !parent || !visible(parent)) return false;
+          const r = el.getBoundingClientRect();
+          const s = getComputedStyle(el);
+          return r.width > 1 && r.height > 1 && s.visibility !== 'hidden' && s.display !== 'none';
+        };
         const kw = /cookie|consenso|consent|tracciament|privacy/i;
         const textOf = (el: Element) => ((el as HTMLElement).innerText ?? el.textContent ?? '').trim();
         // Contenitori dei gestori noti visibili: solo i più esterni
@@ -135,7 +145,7 @@ async function scanFrame(frame: Frame, role: FrameRole): Promise<{ banner: boole
           collect(b);
           if (b.shadowRoot) collect(b.shadowRoot);
           for (const el of inner) {
-            if (seen.has(el) || !visible(el)) continue;
+            if (seen.has(el) || !visibleControl(el)) continue;
             seen.add(el);
             const raw = textOf(el) || (el as HTMLInputElement).value || el.getAttribute('aria-label') || el.getAttribute('title') || '';
             const text = raw.replace(/\s+/g, ' ').replace(/[›»→>]+$/, '').trim();
