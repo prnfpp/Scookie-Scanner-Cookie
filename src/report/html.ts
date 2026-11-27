@@ -182,6 +182,8 @@ ${briefHtml}
   const top = summaryItems(findings).slice(0, 10);
   const inTop = new Set(top.flatMap((i) => i.findings.map((f) => f.id)));
   const blockedSites = [...new Set(sessions.filter((s) => s.blocked).map((s) => host(s.site)))];
+  // "sconosciuto" copre anche l'errore del server senza una pagina di verifica riconosciuta: non è detto un blocco anti-bot.
+  const blockedByKnownSystem = sessions.some((s) => s.blocked && s.blocked.provider !== 'sconosciuto');
   const unreachable = sessions.filter((s) => s.unreachable);
   const unreachableSites = [...new Set(unreachable.map((s) => host(s.site)))];
   const allUnreachable = unreachableSites.filter((h) => sessions.filter((s) => host(s.site) === h).every((s) => s.unreachable || s.blocked));
@@ -192,7 +194,7 @@ ${briefHtml}
 ${top.length ? `<p>I fatti principali, raggruppati per causa e ordinati per priorità di verifica, forza della prova e ripetibilità. I rilievi che derivano dallo stesso fatto sono riuniti in un punto; il dettaglio e le prove sono nei rilievi indicati.</p>
 <ol>${top.map((i) => `<li>${esc(i.title)} <span class="muted">(${esc(i.hosts.join(', '))}${i.repeats ? ` · ${esc(i.repeats)}` : ''})</span> — ${sevBadge(i.severity)} ${i.findings.map((f) => `<a href="#${f.id}">${f.id}</a>`).join(', ')}</li>`).join('')}</ol>` : '<p>Nessun rilievo con priorità di verifica alta o media.</p>'}
 ${findings.length > inTop.size ? `<p class="muted">${findings.length - inTop.size === 1 ? 'Un altro rilievo, di priorità minore o di contesto, è nella sezione 3.' : `Altri ${findings.length - inTop.size} rilievi, di priorità minore o di contesto, sono nella sezione 3.`}</p>` : ''}
-${blockedSites.length ? `<p class="warn"><strong>Accesso intercettato.</strong> Su ${esc(blockedSites.join(', '))} la navigazione è stata intercettata da un sistema anti-bot: le sessioni coinvolte non sono valide e non sono state usate per i rilievi.</p>` : ''}
+${blockedSites.length ? `<p class="warn"><strong>Accesso intercettato.</strong> Su ${esc(blockedSites.join(', '))} la navigazione è stata ${blockedByKnownSystem ? 'intercettata da un sistema anti-bot' : 'bloccata o ha ricevuto un errore del server, senza una pagina di verifica anti-bot riconosciuta'}: le sessioni coinvolte non sono valide e non sono state usate per i rilievi.</p>` : ''}
 ${unreachable.length ? `<p class="warn"><strong>Pagine non caricate.</strong> ${plural(unreachable.length, '1 sessione non ha potuto caricare il sito', `${unreachable.length} sessioni non hanno potuto caricare il sito`)} (${esc(unreachableSites.join(', '))}), per esempio per connessione assente o computer in stop: ${plural(unreachable.length, 'non è valida e non è stata usata', 'non sono valide e non sono state usate')} per i rilievi.${allUnreachable.length ? ` Per ${esc(allUnreachable.join(', '))} non ci sono dati: il rapporto non descrive ${allUnreachable.length === 1 ? 'questo sito' : 'questi siti'}.` : ''}</p>` : ''}
 <h3>Rilievi per sito e priorità di verifica</h3>
 <table><tr><th>Sito / dominio</th>${SEV.map((s) => `<th>${sevBadge(s)}</th>`).join('')}<th>Totale</th></tr>
@@ -434,7 +436,7 @@ ${[...third]
   // 5. Limiti: generali e di questa rilevazione (cosa non è stato visto e perché)
   const notSeen: string[] = [];
   if (allUnreachable.length) notSeen.push(`Nessun dato per ${allUnreachable.join(', ')}: le pagine non si sono caricate.`);
-  if (blockedSites.length) notSeen.push(`Su ${blockedSites.join(', ')} alcune sessioni sono state intercettate da un sistema anti-bot e non sono state usate.`);
+  if (blockedSites.length) notSeen.push(`Su ${blockedSites.join(', ')} alcune sessioni sono state ${blockedByKnownSystem ? 'intercettate da un sistema anti-bot' : 'bloccate o hanno ricevuto un errore del server'} e non sono state usate.`);
   for (const d of r.declared.filter((x) => !x.source)) {
     notSeen.push(
       d.textual

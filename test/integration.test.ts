@@ -42,6 +42,7 @@ before(async () => {
       { url: url('sito-g.test'), sitemap: false, seguiLink: false, banner: { attesa: 2000 } },
       { url: url('sito-h.test'), sitemap: false, seguiLink: false, banner: { attesa: 1000 } },
       { url: url('sito-j.test'), sitemap: false, seguiLink: false, banner: { attesa: 1000 } },
+      { url: url('sito-k.test'), sitemap: false, seguiLink: false, banner: { attesa: 1000 } },
       { url: url('sito-d.test'), sitemap: false, dichiarati: join(FIXTURES, 'dichiarati-sito-d.csv'), cookiePolicy: url('www.sito-b.test', '/cookie-policy') },
     ],
   };
@@ -319,6 +320,18 @@ test('sito-h: pagina di verifica anti-bot riconosciuta, sessioni non valide e ne
   assert.ok(!ss.some((s) => s.retryOf), 'nessuna ripetizione delle sessioni bloccate');
   const r = rules('sito-h.test');
   assert.deepEqual(r, ['accesso-bloccato']);
+});
+
+test('sito-k: errore del server (503) senza pagina di verifica anti-bot riconosciuta, sessioni non valide', () => {
+  const ss = result.sessions.filter((s) => s.site.includes('sito-k.test'));
+  assert.ok(ss.length >= 3);
+  assert.ok(ss.every((s) => s.blocked?.provider === 'sconosciuto'));
+  assert.ok(ss.every((s) => /HTTP 503/.test(s.blocked?.signal ?? '')));
+  const r = rules('sito-k.test');
+  assert.deepEqual(r, ['accesso-bloccato']);
+  const f = expandFindings(result.findings).find((x) => x.ruleId === 'accesso-bloccato' && x.site.includes('sito-k.test'));
+  assert.match(f!.description, /errore del server/);
+  assert.ok(!/anti-bot/.test(f!.description));
 });
 
 test('paese di uscita verificato e registrato nel manifest', () => {

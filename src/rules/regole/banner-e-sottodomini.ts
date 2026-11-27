@@ -172,17 +172,25 @@ export const accessoBloccato: Rule = {
       const total = list.length + sessions.filter((s) => s.site === site).length;
       const providers = [...new Set(list.map((s) => s.blocked!.provider))];
       const all = list.length === total;
+      // "sconosciuto" qui copre anche il caso senza una pagina di verifica riconosciuta: solo un errore del server
+      // (es. HTTP 503 generico) sul documento principale. Non è detto che sia un sistema anti-bot.
+      const knownProviders = providers.filter((p) => p !== 'sconosciuto');
+      const cause = knownProviders.length
+        ? `con una pagina di verifica di ${knownProviders.join(', ')}`
+        : 'con un errore del server, senza una pagina di verifica riconosciuta';
       out.push({
         site,
         scenario: null,
         pageUrl: list[0].blocked!.url,
-        headline: `${list.length === total ? 'Sito non analizzabile' : `${nWords(list.length, 'sessione', 'sessioni')} su ${total} non ${plural(list.length, 'valida', 'valide')}`}: accesso bloccato da ${providers.join(', ')}`,
+        headline: `${list.length === total ? 'Sito non analizzabile' : `${nWords(list.length, 'sessione', 'sessioni')} su ${total} non ${plural(list.length, 'valida', 'valide')}`}: ${knownProviders.length ? `accesso bloccato da ${knownProviders.join(', ')}` : 'il server ha risposto con un errore'}`,
         description:
-          `${nWords(list.length, 'sessione', 'sessioni')} su ${total} ${plural(list.length, 'è stata intercettata', 'sono state intercettate')} da ${providers.join(', ')} con una pagina di verifica anti-bot. ` +
+          `${nWords(list.length, 'sessione', 'sessioni')} su ${total} ${plural(list.length, 'è stata intercettata', 'sono state intercettate')} ${cause}. ` +
           (all
             ? 'Il sito non è stato analizzabile: nessun rilievo è stato ricavato da queste sessioni.'
             : 'Queste sessioni sono escluse dalle regole: i rilievi del sito derivano solo dalle sessioni valide.') +
-          ' Il tool non tenta di aggirare questi sistemi; si può ripetere l\'audit con il browser visibile o in un altro momento.',
+          (knownProviders.length
+            ? ' Il tool non tenta di aggirare questi sistemi; si può ripetere l\'audit con il browser visibile o in un altro momento.'
+            : ' Il contenuto osservato non è la pagina reale del sito: si può ripetere l\'audit più tardi, per verificare se l\'errore era temporaneo.'),
         details: list.map((s) => `${s.id} (${s.scenario}) — ${s.blocked!.signal} su ${s.blocked!.url}`),
         evidence: sessionEvidence(list[0], ['1-banner']),
       });

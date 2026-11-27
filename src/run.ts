@@ -710,7 +710,8 @@ async function runAuditInner(loaded: LoadedConfig, opts: RunOptions, config: Aud
       }
       siteResults.push(...job.manual);
       const blockedCount = siteResults.filter((s) => s.blocked).length;
-      if (blockedCount) log(`    ${nWords(blockedCount, 'sessione', 'sessioni')} su ${siteResults.length} ${plural(blockedCount, 'bloccata', 'bloccate')} da un sistema anti-bot: ${plural(blockedCount, 'esclusa', 'escluse')} dalle regole`);
+      const blockedByKnownSystem = siteResults.some((s) => s.blocked && s.blocked.provider !== 'sconosciuto');
+      if (blockedCount) log(`    ${nWords(blockedCount, 'sessione', 'sessioni')} su ${siteResults.length} ${plural(blockedCount, 'bloccata', 'bloccate')} ${blockedByKnownSystem ? 'da un sistema anti-bot' : 'o con un errore del server'}: ${plural(blockedCount, 'esclusa', 'escluse')} dalle regole`);
       const unreachableCount = siteResults.filter((s) => s.unreachable).length;
       if (unreachableCount) log(`    ${nWords(unreachableCount, 'sessione', 'sessioni')} su ${siteResults.length} senza accesso al sito: ${plural(unreachableCount, 'esclusa', 'escluse')} dalle regole`);
       sessions.push(...siteResults);

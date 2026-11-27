@@ -2,6 +2,11 @@
 
 ## Non rilasciato
 
+- **Errore del server (es. 503) scambiato per una pagina reale** (es. comet.it: un WAF che blocca il browser
+  automatizzato con un 503 vuoto, senza una pagina di verifica anti-bot riconoscibile): la sessione veniva trattata
+  come valida, producendo rilievi di conformità ("informativa non trovata", "nessun banner") su una pagina che non è
+  il sito. Ora un documento principale con HTTP ≥ 500 viene trattato come sessione non valida (come un blocco
+  anti-bot riconosciuto) ed esclusa dalle regole.
 - **Pannelli di preferenze estesi (TCF) non riconosciuti** (es. gazzetta.it: 1240 fornitori, oltre 16.000 caratteri
   visibili): il limite di 5.000 caratteri usato per riconoscere il banner escludeva il pannello vero, lasciando come
   unico candidato un elemento estraneo senza pulsanti. Il limite è ora 20.000 caratteri.

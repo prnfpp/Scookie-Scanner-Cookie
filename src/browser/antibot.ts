@@ -47,5 +47,11 @@ export async function detectBotChallenge(page: Page, response: Response | null):
   if (TITLE_RE.test(info.title) && (status >= 400 || headers['cf-ray'] || headers['x-iinfo'] || /akamai/i.test(headers.server ?? ''))) {
     return { provider: headers['cf-ray'] ? 'Cloudflare' : headers['x-iinfo'] ? 'Imperva' : /akamai/i.test(headers.server ?? '') ? 'Akamai' : 'sconosciuto', signal: `titolo "${info.title}" (HTTP ${status})`, url };
   }
+  // Nessuna pagina di verifica riconosciuta, ma il documento principale ha risposto con un errore del server: il
+  // contenuto osservato non è la pagina reale del sito (es. un WAF che restituisce 503 senza una pagina di verifica
+  // tipica). Trattarla come una sessione valida produrrebbe rilievi di conformità su una pagina che non è il sito.
+  if (status >= 500) {
+    return { provider: 'sconosciuto', signal: `il documento principale ha risposto con un errore del server (HTTP ${status})`, url };
+  }
   return null;
 }
