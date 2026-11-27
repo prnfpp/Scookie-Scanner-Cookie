@@ -20,6 +20,7 @@ export const CMP_CONTAINERS = [
   '#hs-modal',
   '#iubenda-cs-banner',
   '.iubenda-cs-preferences',
+  '.as-oil',
 ];
 
 /**
@@ -28,4 +29,4 @@ export const CMP_CONTAINERS = [
  * non fa parte del banner.
  */
 export const CMP_FRAME_URL =
-  /consent|cookie|\bcmp\b|cmp\.|privacy-?(center|manager|mgmt)|sp_message|usercentrics|cookiebot|onetrust|cookielaw|iubenda|didomi|privacy-center\.org|cookieyes|quantcast|trustarc|truste|sourcepoint|complianz/i;
+  /consent|cookie|\bcmp\b|cmp\.|privacy-?(center|manager|mgmt)|sp_message|usercentrics|cookiebot|onetrust|cookielaw|iubenda|didomi|privacy-center\.org|cookieyes|quantcast|trustarc|truste|sourcepoint|complianz|avacy/i;

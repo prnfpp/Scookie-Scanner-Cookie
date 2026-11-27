@@ -2,7 +2,7 @@ import type { Locator, Page } from 'playwright';
 import { normalizeDeclaredCategory } from '../classify/classifier.js';
 import { readToggles } from './analysis.js';
 import { clickFirst, describeElement, findVisible, waitFor, type ClickedElement } from './dom.js';
-import { TEXTS, clickCandidate, consentFrames, scan } from './heuristic.js';
+import { TEXTS, clickCandidate, consentFrames, isPreferences, scan } from './heuristic.js';
 import type { ChoiceResult, ConsentCheck } from './types.js';
 
 /**
@@ -276,7 +276,7 @@ export const genericPersonalizer: Personalizer = {
   async choose(page, mode) {
     if (mode === 'api') return null;
     const steps: string[] = [];
-    const prefs = (await scan(page)).candidates.find((c) => TEXTS.preferences.test(c.text));
+    const prefs = (await scan(page)).candidates.find(isPreferences);
     if (!prefs) return { ok: false, layer: null, via: null, detail: 'pulsante delle preferenze non trovato nel banner' };
     steps.push(await clickCandidate(prefs));
     let found: { frame: import('playwright').Frame; t: { label: string; checked: boolean; disabled: boolean; index?: number } }[] = [];
